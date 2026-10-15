@@ -2,9 +2,9 @@
 PrintPulse Comprehensive Benchmark Suite
 Evaluates performance across 4 critical engineering dimensions:
 1. STL Binary Parsing Throughput (triangles/sec & memory footprint)
-2. TabPFN-3.5 Zero-Shot Risk Monotonicity & Inference Speed
+2. TabPFN-3.5 Tabular Foundation Scrap Risk Inference Speed & Calibration
 3. DigitalOcean Serverless Inference (Gemma-4-31B-it) Latency & Quality
-4. Temporal Durable Workflow Execution & Heartbeat Resiliency
+4. Temporal Durable Workflow Execution & Saga Compensating Transactions
 
 Outputs: /root/printpulse/benchmarks/BENCHMARK_REPORT.md
 """
@@ -44,7 +44,7 @@ def benchmark_stl_parsing(num_iterations: int = 50) -> dict:
         "throughput_triangles_per_sec": int(total_triangles / (sum(latencies) / 1000.0))
     }
 
-def benchmark_tabpfn_inference(num_iterations: int = 50) -> dict:
+def benchmark_tabpfn_inference(num_iterations: int = 30) -> dict:
     predictor = TabPFNScrapPredictor()
     bracket = asdict(parse_stl("/root/printpulse/models/overhang_bracket.stl"))
     materials = ["PLA", "PETG", "ABS", "PA-CF"]
@@ -67,8 +67,9 @@ def benchmark_tabpfn_inference(num_iterations: int = 50) -> dict:
         latencies.append((t1 - t0) * 1000.0)
 
     return {
-        "mean_latency_ms": round(statistics.mean(latencies), 4),
-        "p95_latency_ms": round(statistics.quantiles(latencies, n=20)[18], 4),
+        "engine": predictor._active_engine,
+        "mean_latency_ms": round(statistics.mean(latencies), 2),
+        "p95_latency_ms": round(statistics.quantiles(latencies, n=20)[18], 2),
         "zero_shot_material_calibration": risk_results
     }
 
@@ -86,8 +87,14 @@ def benchmark_digitalocean_inference() -> dict:
         t0 = time.perf_counter()
         quote = agent.generate_quote(cube, pred, material="PETG")
         t1 = time.perf_counter()
+        
+        # Verify genuine completion from DigitalOcean Serverless Inference
+        words = quote.llm_advisory_report.split()
+        if len(words) < 50:
+            raise RuntimeError(f"DigitalOcean inference returned truncated/fallback advisory: {quote.llm_advisory_report}")
+        
         latencies.append(round(t1 - t0, 3))
-        token_lengths.append(len(quote.llm_advisory_report.split()))
+        token_lengths.append(len(words))
 
     return {
         "endpoint": "https://inference.do-ai.run/v1/chat/completions",
@@ -104,9 +111,9 @@ def generate_benchmark_report(stl_res: dict, tab_res: dict, do_res: dict, output
 ---
 
 ## 1. Executive Summary
-PrintPulse combines lightweight deterministic 3D geometry analysis, Prior Labs **TabPFN-3.5** tabular foundation inference, and **DigitalOcean Serverless Inference (Google Gemma 4 31B)** under a **Temporal** durable execution harness.
+PrintPulse combines lightweight deterministic 3D geometry analysis, Prior Labs **TabPFN-3.5** tabular foundation inference, and **DigitalOcean Serverless Inference (Google Gemma 4 31B)** under a **Temporal** durable execution harness with Saga compensation.
 
-This report captures real physical measurements across binary STL parsing, zero-shot scrap risk estimation, and live cloud inference latency.
+This report captures real physical measurements across binary STL parsing, tabular scrap risk estimation, and live cloud inference latency.
 
 ---
 
@@ -123,11 +130,13 @@ This report captures real physical measurements across binary STL parsing, zero-
 
 ---
 
-## 3. Prior Labs TabPFN-3.5 Zero-Shot Scrap Risk Inference
-*Target: Bayesian zero-shot scrap classification across varying thermal warping and overhang regimes.*
+## 3. Prior Labs TabPFN-3.5 Tabular Scrap Risk Inference
+*Target: Bayesian scrap classification and in-context learning across physical geometry regimes.*
 
+- **Active Engine**: `{tab_res['engine']}`
 - **Inference Latency (Mean)**: `{tab_res['mean_latency_ms']}` ms
 - **P95 Latency**: `{tab_res['p95_latency_ms']}` ms
+- **Reference Training Set**: 50 physical 3D print records (`models/reference_print_dataset.csv`)
 
 ### Material Sensitivity Matrix (`overhang_bracket.stl`, 32cm³ volume):
 | Material | Warp Factor | TabPFN Scrap Risk (%) | Risk Classification | Support Mass Allocation |
@@ -151,14 +160,15 @@ This report captures real physical measurements across binary STL parsing, zero-
 
 ---
 
-## 5. Temporal Durable Workflow Integrity
+## 5. Temporal Durable Workflow & Saga Compensating Transactions
 - **Engine**: Temporal SDK 1.34.0 (Python)
 - **Activities Bound**:
   1. `parse_stl_activity` (Timeout: 15s, Max Retries: 3)
   2. `predict_scrap_risk_activity` (Timeout: 15s, Max Retries: 3)
   3. `generate_quote_activity` (Timeout: 35s, Max Retries: 3)
   4. `reserve_spool_inventory_activity` (Timeout: 10s, Max Retries: 3)
-- **Saga Compensation**: Automated risk threshold bifurcation (>70% triggers `REVIEW_REQUIRED_HIGH_SCRAP` condition).
+  5. `release_spool_reservation_activity` (Timeout: 10s, Max Retries: 3)
+- **Saga Compensation**: When TabPFN triggers `risk_tier == "CRITICAL"`, Temporal automatically invokes `release_spool_reservation_activity` to deallocate the reserved spool from the warehouse ledger, preventing locked stock before flagging `REVIEW_REQUIRED_HIGH_SCRAP`.
 """
     with open(output_file, "w") as f:
         f.write(content)
@@ -166,9 +176,9 @@ This report captures real physical measurements across binary STL parsing, zero-
 
 if __name__ == "__main__":
     print("Running STL parsing benchmark...")
-    stl_bench = benchmark_stl_parsing(100)
+    stl_bench = benchmark_stl_parsing(50)
     print("Running TabPFN inference benchmark...")
-    tab_bench = benchmark_tabpfn_inference(100)
+    tab_bench = benchmark_tabpfn_inference(20)
     print("Running DigitalOcean Serverless Inference benchmark...")
     do_bench = benchmark_digitalocean_inference()
     

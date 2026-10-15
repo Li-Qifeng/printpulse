@@ -23,7 +23,8 @@ from temporal_workflow import (
     parse_stl_activity,
     predict_scrap_risk_activity,
     generate_quote_activity,
-    reserve_spool_inventory_activity
+    reserve_spool_inventory_activity,
+    release_spool_reservation_activity
 )
 
 async def run_sample_pipeline(filepath: str, material: str = "PETG"):
@@ -32,7 +33,7 @@ async def run_sample_pipeline(filepath: str, material: str = "PETG"):
         client: Client = env.client
         task_queue = "printpulse-task-queue"
 
-        # Register worker with our workflow and 4 activities
+        # Register worker with our workflow and 5 activities
         async with Worker(
             client,
             task_queue=task_queue,
@@ -41,7 +42,8 @@ async def run_sample_pipeline(filepath: str, material: str = "PETG"):
                 parse_stl_activity,
                 predict_scrap_risk_activity,
                 generate_quote_activity,
-                reserve_spool_inventory_activity
+                reserve_spool_inventory_activity,
+                release_spool_reservation_activity
             ]
         ):
             print(f"[Temporal] Worker listening on task queue: {task_queue}")

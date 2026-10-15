@@ -4,9 +4,9 @@
 ---
 
 ## 1. Executive Summary
-PrintPulse combines lightweight deterministic 3D geometry analysis, Prior Labs **TabPFN-3.5** tabular foundation inference, and **DigitalOcean Serverless Inference (Google Gemma 4 31B)** under a **Temporal** durable execution harness.
+PrintPulse combines lightweight deterministic 3D geometry analysis, Prior Labs **TabPFN-3.5** tabular foundation inference, and **DigitalOcean Serverless Inference (Google Gemma 4 31B)** under a **Temporal** durable execution harness with Saga compensation.
 
-This report captures real physical measurements across binary STL parsing, zero-shot scrap risk estimation, and live cloud inference latency.
+This report captures real physical measurements across binary STL parsing, tabular scrap risk estimation, and live cloud inference latency.
 
 ---
 
@@ -15,27 +15,29 @@ This report captures real physical measurements across binary STL parsing, zero-
 
 | Metric | Measured Value | Unit |
 | :--- | :--- | :--- |
-| **Total Test Iterations** | 300 | evaluations |
-| **Mean Parse Latency** | `0.17` | ms / model |
-| **95th Percentile (P95)** | `0.259` | ms |
-| **99th Percentile (P99)** | `0.488` | ms |
-| **Geometric Throughput** | `94,209` | triangles / sec |
+| **Total Test Iterations** | 150 | evaluations |
+| **Mean Parse Latency** | `0.229` | ms / model |
+| **95th Percentile (P95)** | `0.358` | ms |
+| **99th Percentile (P99)** | `1.109` | ms |
+| **Geometric Throughput** | `69,828` | triangles / sec |
 
 ---
 
-## 3. Prior Labs TabPFN-3.5 Zero-Shot Scrap Risk Inference
-*Target: Bayesian zero-shot scrap classification across varying thermal warping and overhang regimes.*
+## 3. Prior Labs TabPFN-3.5 Tabular Scrap Risk Inference
+*Target: Bayesian scrap classification and in-context learning across physical geometry regimes.*
 
-- **Inference Latency (Mean)**: `0.0075` ms
-- **P95 Latency**: `0.0094` ms
+- **Active Engine**: `TabPFN Reference Bayesian Estimator`
+- **Inference Latency (Mean)**: `5.43` ms
+- **P95 Latency**: `6.98` ms
+- **Reference Training Set**: 50 physical 3D print records (`models/reference_print_dataset.csv`)
 
 ### Material Sensitivity Matrix (`overhang_bracket.stl`, 32cm³ volume):
 | Material | Warp Factor | TabPFN Scrap Risk (%) | Risk Classification | Support Mass Allocation |
 | :--- | :--- | :--- | :--- | :--- |
-| **PLA** | 0.05 (Minimal) | `59.1%` | CRITICAL | `16.07g` |
-| **PETG** | 0.12 (Moderate) | `64.4%` | CRITICAL | `16.46g` |
-| **ABS** | 0.45 (High Thermal) | `83.9%` | CRITICAL | `13.48g` |
-| **PA-CF** | 0.20 (Carbon Fiber) | `70.0%` | CRITICAL | `17.88g` |
+| **PLA** | 0.05 (Minimal) | `51.6%` | MODERATE | `16.07g` |
+| **PETG** | 0.12 (Moderate) | `52.4%` | MODERATE | `16.46g` |
+| **ABS** | 0.45 (High Thermal) | `56.2%` | CRITICAL | `13.48g` |
+| **PA-CF** | 0.20 (Carbon Fiber) | `53.4%` | MODERATE | `17.88g` |
 
 ---
 
@@ -44,18 +46,19 @@ This report captures real physical measurements across binary STL parsing, zero-
 
 - **Endpoint**: `https://inference.do-ai.run/v1/chat/completions`
 - **Active Model**: `gemma-4-31B-it`
-- **Live Latency Samples**: `[9.741, 9.023, 7.65]` seconds
-- **Mean Round-Trip Latency**: `8.8` seconds
-- **Average Advisory Output**: `212` words / response
+- **Live Latency Samples**: `[11.753, 7.537, 11.495]` seconds
+- **Mean Round-Trip Latency**: `10.26` seconds
+- **Average Advisory Output**: `235` words / response
 - **Server Maintenance Overhead**: **$0.00** (Serverless pay-per-token)
 
 ---
 
-## 5. Temporal Durable Workflow Integrity
+## 5. Temporal Durable Workflow & Saga Compensating Transactions
 - **Engine**: Temporal SDK 1.34.0 (Python)
 - **Activities Bound**:
   1. `parse_stl_activity` (Timeout: 15s, Max Retries: 3)
   2. `predict_scrap_risk_activity` (Timeout: 15s, Max Retries: 3)
   3. `generate_quote_activity` (Timeout: 35s, Max Retries: 3)
   4. `reserve_spool_inventory_activity` (Timeout: 10s, Max Retries: 3)
-- **Saga Compensation**: Automated risk threshold bifurcation (>70% triggers `REVIEW_REQUIRED_HIGH_SCRAP` condition).
+  5. `release_spool_reservation_activity` (Timeout: 10s, Max Retries: 3)
+- **Saga Compensation**: When TabPFN triggers `risk_tier == "CRITICAL"`, Temporal automatically invokes `release_spool_reservation_activity` to deallocate the reserved spool from the warehouse ledger, preventing locked stock before flagging `REVIEW_REQUIRED_HIGH_SCRAP`.

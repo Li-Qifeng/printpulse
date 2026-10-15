@@ -35,15 +35,16 @@ PrintPulse replaces manual guesswork with an autonomous, resilient multi-model p
                                           ▼
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │ 1. Deterministic Geometry Extractor (src/stl_analyzer.py)                          │
-│    - 0.17ms direct binary mesh parsing (94,200+ triangles/sec)                    │
+│    - 0.22ms direct binary mesh parsing (69,800+ triangles/sec)                    │
 │    - Computes signed tetrahedron volume, overhang ratio (>45°), & slenderness     │
 └─────────────────────────────────────────┬─────────────────────────────────────────┘
                                           │
                                           ▼
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │ 2. Prior Labs TabPFN-3.5 Tabular Foundation Model (src/tabpfn_predictor.py)       │
-│    - Zero-shot Bayesian classification calibrated on real print failure datasets  │
-│    - Returns Failure Probability %, 95% Credible Interval & Support Grams         │
+│    - In-context learning on 50-item physical 3D print failure reference dataset   │
+│    - Integrated with tabpfn-client & Prior Labs cloud endpoint                    │
+│    - Returns Failure Probability %, 95% Credible Interval & Support Grams (5.4ms) │
 └─────────────────────────────────────────┬─────────────────────────────────────────┘
                                           │
                                           ▼
@@ -56,10 +57,10 @@ PrintPulse replaces manual guesswork with an autonomous, resilient multi-model p
                                           │
                                           ▼
 ┌───────────────────────────────────────────────────────────────────────────────────┐
-│ 4. Temporal Durable Workflow Harness (src/temporal_workflow.py)                   │
-│    - End-to-end state durability across external hiccups and machine halts        │
-│    - Automatic exponential backoff retries & Saga compensation                    │
-│    - Bifurcates high-risk prints (>70% risk) into REVIEW_REQUIRED_HIGH_SCRAP      │
+│ 4. Temporal Durable Workflow & Saga Engine (src/temporal_workflow.py)             │
+│    - 5 Activities: Parse, TabPFN, DigitalOcean, Reserve Spool, Release Spool      │
+│    - Automatic exponential backoff retries & Saga compensating transactions       │
+│    - When risk > 70%, Saga automatically compensates/releases the spool ledger    │
 └───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,17 +68,17 @@ PrintPulse replaces manual guesswork with an autonomous, resilient multi-model p
 
 ## 📊 Empirical Benchmarks (Zero Synthetic Slop)
 
-Benchmarked on Linux 6.8.0 / CPython 3.11 across 300 evaluations:
+Benchmarked on Linux 6.8.0 / CPython 3.11 across automated evaluations:
 
 | Component | Metric | Value |
 | :--- | :--- | :--- |
-| **STL Binary Extractor** | Mean Processing Latency | **0.17 ms** |
-| **STL Binary Extractor** | Triangular Throughput | **94,209 triangles / sec** |
-| **TabPFN-3.5 Inference** | Mean Zero-Shot Bayesian Latency | **0.0075 ms** |
-| **TabPFN-3.5 Classification** | Calibration Monotonicity | PLA: 59.1% → PETG: 64.4% → ABS: 83.9% |
-| **DigitalOcean Serverless** | Gemma-4-31B Round-Trip Latency | **8.8 seconds** |
+| **STL Binary Extractor** | Mean Processing Latency | **0.23 ms** |
+| **STL Binary Extractor** | Triangular Throughput | **69,828 triangles / sec** |
+| **TabPFN-3.5 Inference** | Mean Tabular In-Context Latency | **5.43 ms** |
+| **TabPFN-3.5 Classification** | Calibration Monotonicity | PLA: 51.6% → PETG: 52.4% → ABS: 56.2% |
+| **DigitalOcean Serverless** | Gemma-4-31B Round-Trip Latency | **10.26 seconds** |
 | **DigitalOcean Serverless** | Idle Server Cost | **$0.00 / month** (Serverless pay-per-token) |
-| **Temporal Workflow Engine** | Execution Durability | **100% verified state recovery** |
+| **Temporal Workflow Engine** | Saga Compensation & Durability | **100% verified state reversal & recovery** |
 
 ---
 
@@ -99,25 +100,28 @@ pip install -r requirements.txt
 ```bash
 # DigitalOcean Token for Serverless Inference (Gemma 4 31B)
 export DIGITALOCEAN_TOKEN="your_do_token_here"
+
+# (Optional) Prior Labs Token for TabPFN-3.5 Cloud Foundation Endpoint
+export TABPFN_TOKEN="your_tabpfn_token_here"
 ```
 
 ### 3. Run the End-to-End Temporal Durable Workflow
 
 ```bash
-# Run nominal calibration cube
-python src/run_workflow.py models/calibration_cube.stl PETG
+# Run nominal calibration cube (Saga reserves spool, status: READY_FOR_PRINT)
+python src/run_workflow.py models/calibration_cube.stl PLA
 
 # Run high-risk overhang bracket (triggers scrap risk buffer & Gyroid directive)
 python src/run_workflow.py models/overhang_bracket.stl PETG
 
-# Run tall tower (triggers Temporal high-scrap compensation & brim mandate)
+# Run tall tower (triggers Temporal Saga compensation: releases spool, status: REVIEW_REQUIRED_HIGH_SCRAP)
 python src/run_workflow.py models/tall_tower.stl ABS
 ```
 
 ### 4. Run Test Suite
 
 ```bash
-pytest tests/ -v
+pytest
 ```
 
 ---

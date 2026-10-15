@@ -47,6 +47,8 @@ class JobReceipt:
     print_time_hours: float
     llm_advisory_snippet: str
     durable_execution_verified: bool
+    saga_compensation_applied: bool
+    spool_reservation_id: str
 
 # --- Temporal Activities ---
 
@@ -97,9 +99,17 @@ async def reserve_spool_inventory_activity(quote: dict) -> dict:
         "status": "ALLOCATED"
     }
 
+@activity.defn
+async def release_spool_reservation_activity(reservation_id: str) -> dict:
+    activity.logger.info(f"SAGA COMPENSATION: Releasing reserved spool {reservation_id} back to warehouse ledger")
+    return {
+        "reservation_id": reservation_id,
+        "status": "RELEASED_COMPENSATED"
+    }
+
 # --- Temporal Workflow Definition ---
 
-@workflow.defn
+@workflow.defn(sandboxed=False)
 class PrintPulseWorkflow:
     @workflow.run
     async def run(self, job: JobInput) -> JobReceipt:
@@ -148,9 +158,23 @@ class PrintPulseWorkflow:
             retry_policy=standard_retry
         )
 
-        # Determine Final Workflow Disposition
+        # Step 5: Saga Evaluation & Risk-Driven Compensation
         risk_tier = prediction_dict.get("risk_tier", "LOW")
-        final_status = "READY_FOR_PRINT" if risk_tier != "CRITICAL" else "REVIEW_REQUIRED_HIGH_SCRAP"
+        reservation_id = inventory_res.get("reservation_id", "")
+        saga_applied = False
+
+        if risk_tier == "CRITICAL":
+            # Execute Saga Compensating Transaction: cancel inventory allocation to prevent locked inventory
+            await workflow.execute_activity(
+                release_spool_reservation_activity,
+                reservation_id,
+                start_to_close_timeout=timedelta(seconds=10),
+                retry_policy=standard_retry
+            )
+            final_status = "REVIEW_REQUIRED_HIGH_SCRAP"
+            saga_applied = True
+        else:
+            final_status = "READY_FOR_PRINT"
 
         llm_full = quote_dict.get("llm_advisory_report", "")
         # Short snippet for receipt
@@ -166,5 +190,7 @@ class PrintPulseWorkflow:
             final_quote_usd=quote_dict.get("final_quote_usd", 0.0),
             print_time_hours=quote_dict.get("total_print_time_hours", 0.0),
             llm_advisory_snippet=snippet,
-            durable_execution_verified=True
+            durable_execution_verified=True,
+            saga_compensation_applied=saga_applied,
+            spool_reservation_id=reservation_id
         )

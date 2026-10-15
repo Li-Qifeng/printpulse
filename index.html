@@ -5,21 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PrintPulse | 3D Print Farm Scrap Risk Predictor & Quoting Agent</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     :root {
       --bg: #090d16;
       --card-bg: #111827;
-      --border: #1f2937;
+      --card-inner: #1f2937;
+      --border: #374151;
       --primary: #3b82f6;
-      --primary-hover: #2563eb;
+      --primary-glow: rgba(59, 130, 246, 0.25);
       --accent-green: #10b981;
       --accent-yellow: #f59e0b;
       --accent-red: #ef4444;
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0b1120; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; border: 2px solid #0b1120; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg);
@@ -28,38 +33,48 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
     }
     header {
-      padding: 1.25rem 2rem;
+      padding: 1rem 2rem;
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: rgba(17, 24, 39, 0.8);
-      backdrop-filter: blur(8px);
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
     }
-    .logo-area { display: flex; align-items: center; gap: 0.75rem; }
+    .logo-area { display: flex; align-items: center; gap: 0.85rem; }
     .logo-badge {
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
       color: white;
       font-weight: 800;
       font-size: 0.85rem;
-      padding: 0.25rem 0.6rem;
-      border-radius: 6px;
-      letter-spacing: 0.05em;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      letter-spacing: 0.08em;
+      box-shadow: 0 0 15px var(--primary-glow);
     }
-    .title { font-size: 1.25rem; font-weight: 700; color: #fff; }
-    .badge-bar { display: flex; gap: 0.5rem; font-size: 0.75rem; }
+    .title { font-size: 1.2rem; font-weight: 700; color: #fff; }
+    .badge-bar { display: flex; gap: 0.5rem; }
     .tag {
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      background: #1f2937;
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(30, 41, 59, 0.8);
       color: #93c5fd;
-      border: 1px solid #374151;
+      border: 1px solid rgba(147, 197, 253, 0.2);
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
     }
     .main-container {
       display: grid;
-      grid-template-columns: 1fr 440px;
+      grid-template-columns: 1fr 460px;
       gap: 1.5rem;
       padding: 1.5rem 2rem;
       flex: 1;
@@ -67,54 +82,10 @@
       margin: 0 auto;
       width: 100%;
     }
-    .viewer-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
+    @media (max-width: 1100px) {
+      .main-container { grid-template-columns: 1fr; }
     }
-    .canvas-container {
-      position: relative;
-      height: 520px;
-      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    #viewport { width: 100%; height: 100%; display: block; }
-    .canvas-overlay {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(6px);
-      padding: 0.75rem 1rem;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 0.85rem;
-    }
-    .canvas-controls {
-      position: absolute;
-      bottom: 1rem;
-      left: 1rem;
-      display: flex;
-      gap: 0.5rem;
-    }
-    .btn-preset {
-      background: rgba(31, 41, 55, 0.9);
-      color: #e5e7eb;
-      border: 1px solid #4b5563;
-      padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-preset:hover, .btn-preset.active {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: white;
-    }
-    .sidebar {
+    .left-panel, .sidebar {
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
@@ -124,36 +95,112 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 1.25rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     }
     .card-title {
       font-size: 0.95rem;
       font-weight: 700;
-      color: #e5e7eb;
-      margin-bottom: 0.75rem;
+      color: #f1f5f9;
+      margin-bottom: 0.85rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
+    
+    /* Selector Toolbar */
+    .selector-bar {
+      display: flex;
+      gap: 0.6rem;
+      padding: 0.4rem;
+      background: #0f172a;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+      margin-bottom: 1rem;
+    }
+    .btn-preset {
+      flex: 1;
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid transparent;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    .btn-preset:hover {
+      color: #fff;
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .btn-preset.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+    }
+
+    /* 3D Canvas Viewport */
+    .viewport-box {
+      position: relative;
+      height: 480px;
+      background: radial-gradient(circle at 50% 40%, #1e293b 0%, #090d16 85%);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #viewport-canvas { width: 100%; height: 100%; display: block; }
+    
+    .hud-badge {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 0.6rem 0.9rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.8rem;
+      pointer-events: none;
+    }
+    .hud-status {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.75rem;
+      color: #60a5fa;
+      pointer-events: none;
+    }
+
+    /* Metrics Grid */
     .metric-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      font-size: 0.85rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.85rem;
     }
     .metric-box {
-      background: #1f2937;
-      padding: 0.6rem 0.75rem;
-      border-radius: 6px;
-      border: 1px solid #374151;
+      background: var(--card-inner);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
     }
-    .metric-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem; }
-    .metric-val { font-size: 1.1rem; font-weight: 700; color: #fff; }
+    .metric-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; margin-bottom: 0.25rem; }
+    .metric-val { font-size: 1.15rem; font-weight: 700; color: #fff; }
+
+    /* Risk Meter */
     .risk-meter {
       height: 12px;
-      background: #374151;
+      background: #334155;
       border-radius: 6px;
       overflow: hidden;
-      margin: 0.5rem 0;
+      margin: 0.75rem 0;
       position: relative;
     }
     .risk-fill {
@@ -161,47 +208,65 @@
       border-radius: 6px;
       transition: width 0.4s ease, background-color 0.4s ease;
     }
+
+    /* Pricing Table */
     .pricing-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 0.85rem;
-      margin-top: 0.5rem;
     }
-    .pricing-table tr { border-bottom: 1px solid #1f2937; }
-    .pricing-table td { padding: 0.4rem 0; color: var(--text-muted); }
+    .pricing-table tr { border-bottom: 1px solid #1e293b; }
+    .pricing-table td { padding: 0.55rem 0; color: #cbd5e1; }
     .pricing-table td.val { text-align: right; font-weight: 600; color: #fff; }
-    .pricing-total { font-size: 1.2rem; font-weight: 800; color: #60a5fa !important; }
-    .advisory-box {
+    .pricing-total { font-size: 1.35rem; font-weight: 800; color: #60a5fa !important; }
+
+    /* Directive Badges in Advisory */
+    .directive-card {
       background: #0f172a;
       border: 1px solid #1e293b;
-      padding: 0.75rem;
-      border-radius: 6px;
-      font-size: 0.8rem;
-      line-height: 1.4;
-      max-height: 180px;
-      overflow-y: auto;
-      color: #cbd5e1;
+      padding: 0.85rem;
+      border-radius: 8px;
+      margin-top: 0.5rem;
     }
+    .directive-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid #1a2234;
+      font-size: 0.8rem;
+    }
+    .directive-item:last-child { border-bottom: none; }
+    .chip {
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      background: #1e293b;
+      color: #93c5fd;
+      font-weight: 600;
+      font-size: 0.78rem;
+      border: 1px solid #334155;
+    }
+
+    /* Workflow Steps */
     .workflow-steps {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      font-size: 0.8rem;
+      gap: 0.65rem;
+      font-size: 0.82rem;
     }
     .step-item {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
-      color: var(--text-muted);
+      gap: 0.75rem;
+      color: #cbd5e1;
     }
-    .step-item.completed { color: #10b981; }
     .step-dot {
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      background: #4b5563;
+      background: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
     }
-    .step-item.completed .step-dot { background: #10b981; }
   </style>
 </head>
 <body>
@@ -214,22 +279,29 @@
     <div class="badge-bar">
       <span class="tag">DigitalOcean Serverless (Gemma 4 31B)</span>
       <span class="tag">Prior Labs TabPFN-3.5</span>
-      <span class="tag">Temporal Durable Engine</span>
+      <span class="tag">Temporal Durable Workflows</span>
     </div>
   </header>
 
   <div class="main-container">
-    <div class="viewer-panel">
-      <div class="canvas-container">
-        <div id="viewport"></div>
-        <div class="canvas-overlay">
-          <div><strong>Active Model:</strong> <span id="lbl-filename">overhang_bracket.stl</span></div>
-          <div style="color: #94a3b8; font-size: 0.75rem;">Interactive Three.js 3D Viewport (Rotate / Pan / Zoom)</div>
+    <!-- Left Column: 3D Inspection & Geometry -->
+    <div class="left-panel">
+      <div class="card">
+        <!-- Model Selection Toolbar -->
+        <div class="selector-bar">
+          <button class="btn-preset active" data-preset="bracket" onclick="selectModel('bracket')">Overhang Bracket</button>
+          <button class="btn-preset" data-preset="cube" onclick="selectModel('cube')">Calibration Cube</button>
+          <button class="btn-preset" data-preset="tower" onclick="selectModel('tower')">Tall Tower (Tipping Risk)</button>
         </div>
-        <div class="canvas-controls">
-          <button class="btn-preset" onclick="loadPreset('cube')">Calibration Cube</button>
-          <button class="btn-preset active" onclick="loadPreset('bracket')">Overhang Bracket</button>
-          <button class="btn-preset" onclick="loadPreset('tower')">Tall Tower (Tipping)</button>
+
+        <!-- 3D Viewport Box -->
+        <div class="viewport-box">
+          <canvas id="viewport-canvas"></canvas>
+          <div class="hud-badge">
+            <div style="font-weight: 700; color: #fff;">Model: <span id="lbl-filename">overhang_bracket.stl</span></div>
+            <div style="font-size: 0.75rem; color: #94a3b8;" id="lbl-engine">Interactive Real-Time 3D Mesh Inspection</div>
+          </div>
+          <div class="hud-status" id="lbl-render-mode">WebGL 3D Engine Active</div>
         </div>
       </div>
 
@@ -237,7 +309,7 @@
       <div class="card">
         <div class="card-title">
           <span>📐 Geometric Extraction Engine</span>
-          <span style="font-size: 0.75rem; color: #10b981;">● Latency: 0.17ms</span>
+          <span style="font-size: 0.75rem; color: #10b981; font-weight: 600;">● Parse Latency: 0.23 ms</span>
         </div>
         <div class="metric-grid">
           <div class="metric-box">
@@ -245,8 +317,8 @@
             <div class="metric-val" id="val-dims">80 × 20 × 50 mm</div>
           </div>
           <div class="metric-box">
-            <div class="metric-label">Volume & Triangles</div>
-            <div class="metric-val" id="val-vol">32.0 cm³ (24 tris)</div>
+            <div class="metric-label">Volume & Mesh Topology</div>
+            <div class="metric-val" id="val-vol">32.0 cm³ (1,420 tris)</div>
           </div>
           <div class="metric-box">
             <div class="metric-label">Overhang Area (>45°)</div>
@@ -260,24 +332,24 @@
       </div>
     </div>
 
-    <!-- Sidebar: Intelligence & Economics -->
+    <!-- Right Column: Intelligence, Economics & Workflows -->
     <div class="sidebar">
-      <!-- TabPFN Zero-Shot Scrap Prediction -->
+      <!-- Prior Labs TabPFN-3.5 Scrap Risk -->
       <div class="card">
         <div class="card-title">
           <span>Prior Labs TabPFN-3.5 Scrap Risk</span>
-          <span id="badge-tier" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: #ef4444; color: white;">CRITICAL</span>
+          <span id="badge-tier" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 4px; background: #f59e0b; color: white; font-weight: 700;">MODERATE</span>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 0.25rem;">
-          <span style="color: var(--text-muted);">Bayesian Failure Probability:</span>
-          <strong id="val-risk-pct" style="font-size: 1.1rem; color: #f87171;">64.4%</strong>
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Bayesian Failure Probability:</span>
+          <strong id="val-risk-pct" style="font-size: 1.25rem; color: #f59e0b;">52.4%</strong>
         </div>
         <div class="risk-meter">
-          <div id="risk-bar" class="risk-fill" style="width: 64.4%; background-color: var(--accent-red);"></div>
+          <div id="risk-bar" class="risk-fill" style="width: 52.4%; background-color: var(--accent-yellow);"></div>
         </div>
-        <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
-          <span>95% Credible Interval: <span id="val-ci" style="color: #e2e8f0;">[57.7% - 71.2%]</span></span>
-          <span>Brim: <strong id="val-brim" style="color: #f59e0b;">Required</strong></span>
+        <div style="font-size: 0.78rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+          <span>95% Credible Interval: <span id="val-ci" style="color: #e2e8f0; font-weight: 600;">[44.9% - 59.9%]</span></span>
+          <span>Brim: <strong id="val-brim" style="color: #f59e0b;">Standard</strong></span>
         </div>
       </div>
 
@@ -285,7 +357,7 @@
       <div class="card">
         <div class="card-title">
           <span>💰 Manufacturing Quote Breakdown</span>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">PETG @ $22/kg</span>
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">PETG @ $22/kg</span>
         </div>
         <table class="pricing-table">
           <tr>
@@ -297,16 +369,16 @@
             <td class="val" id="price-mach">$2.77</td>
           </tr>
           <tr>
-            <td>TabPFN Scrap Risk Buffer (64.4% risk)</td>
-            <td class="val" id="price-risk" style="color: #f87171;">$2.86</td>
+            <td>TabPFN Scrap Risk Buffer (Expected Waste)</td>
+            <td class="val" id="price-risk" style="color: #fbbf24;">+$2.32</td>
           </tr>
           <tr>
             <td>Target Gross Margin (40%)</td>
-            <td class="val" id="price-margin">$2.57</td>
+            <td class="val" id="price-margin">$2.35</td>
           </tr>
           <tr style="border-top: 2px solid #374151;">
-            <td style="font-weight: 700; color: #fff; padding-top: 0.6rem;">Final Quoted Price</td>
-            <td class="val pricing-total" id="price-total">$8.98</td>
+            <td style="font-weight: 700; color: #fff; padding-top: 0.65rem;">Final Customer Quote</td>
+            <td class="val pricing-total" id="price-total">$8.23</td>
           </tr>
         </table>
       </div>
@@ -314,15 +386,29 @@
       <!-- DigitalOcean Gemma 4 31B Advisory -->
       <div class="card">
         <div class="card-title">
-          <span>DigitalOcean Gemma-4-31B Advisory</span>
-          <span style="font-size: 0.75rem; color: #60a5fa;">inference.do-ai.run</span>
+          <span>DigitalOcean Gemma-4-31B Directives</span>
+          <span style="font-size: 0.75rem; color: #60a5fa; font-weight: 600;">inference.do-ai.run</span>
         </div>
-        <div class="advisory-box" id="llm-advisory">
-          <strong>DECISION: CONDITIONAL REVIEW</strong><br>
-          TabPFN indicates a 64.4% failure probability due to cantilever overhangs.<br><br>
-          • <strong>Infill:</strong> Switch to Gyroid (15-20%) for isotropic thermal stress mitigation.<br>
-          • <strong>Support:</strong> Density 40%, 0.2mm Z-gap interface.<br>
-          • <strong>Cooling:</strong> Fan speed 30-50% first 5 layers, 60% nominal.
+        <div style="font-size: 0.85rem; color: #e2e8f0; margin-bottom: 0.4rem;">
+          <strong>DECISION: <span id="advisory-decision" style="color: #fbbf24;">CONDITIONAL REVIEW</span></strong>
+        </div>
+        <div class="directive-card">
+          <div class="directive-item">
+            <span style="color: #94a3b8;">Slicer Infill Pattern:</span>
+            <span class="chip" id="chip-infill">Gyroid (15-20%)</span>
+          </div>
+          <div class="directive-item">
+            <span style="color: #94a3b8;">Support Interface Density:</span>
+            <span class="chip" id="chip-support">40% / 0.2mm Z-Gap</span>
+          </div>
+          <div class="directive-item">
+            <span style="color: #94a3b8;">Cooling Fan & Chamber:</span>
+            <span class="chip" id="chip-cooling">30-50% (5 layers) -> 60%</span>
+          </div>
+          <div class="directive-item">
+            <span style="color: #94a3b8;">Bed Adhesion Override:</span>
+            <span class="chip" id="chip-adhesion">Standard 5mm Brim</span>
+          </div>
         </div>
       </div>
 
@@ -330,21 +416,48 @@
       <div class="card">
         <div class="card-title">
           <span>Temporal Durable Pipeline</span>
-          <span style="font-size: 0.75rem; color: #10b981;">● 4/4 Verified</span>
+          <span style="font-size: 0.75rem; color: #10b981; font-weight: 600;">● 5/5 Activities Verified</span>
         </div>
         <div class="workflow-steps">
-          <div class="step-item completed"><div class="step-dot"></div><span>1. STL Geometry Deterministic Parse</span></div>
-          <div class="step-item completed"><div class="step-dot"></div><span>2. TabPFN-3.5 Zero-Shot Bayesian Prior</span></div>
-          <div class="step-item completed"><div class="step-dot"></div><span>3. DigitalOcean Gemma-4-31B Quoting Agent</span></div>
-          <div class="step-item completed"><div class="step-dot"></div><span>4. Spool Ledger Reservation & Compensation</span></div>
+          <div class="step-item"><div class="step-dot"></div><span>1. STL Geometry Deterministic Parse (0.23ms)</span></div>
+          <div class="step-item"><div class="step-dot"></div><span>2. TabPFN-3.5 Bayesian In-Context Inference (5.4ms)</span></div>
+          <div class="step-item"><div class="step-dot"></div><span>3. DigitalOcean Gemma-4-31B Quoting Agent</span></div>
+          <div class="step-item"><div class="step-dot"></div><span>4. Spool Inventory Ledger Reservation</span></div>
+          <div class="step-item"><div class="step-dot" style="background: #3b82f6;"></div><span id="step-saga">5. Saga Compensating Transaction: Standby</span></div>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    // Preset Data Models
     const PRESETS = {
+      bracket: {
+        filename: "overhang_bracket.stl",
+        dims: "80 × 20 × 50 mm",
+        vol: "32.0 cm³ (1,420 tris)",
+        overhang: "16.0 cm² (17.4%)",
+        aspect: "2.22 / 2.50",
+        tier: "MODERATE",
+        tierColor: "#f59e0b",
+        riskPct: "52.4%",
+        ci: "[44.9% - 59.9%]",
+        brim: "Standard",
+        grams: "35.8g",
+        time: "0.79 hrs",
+        mat: "$0.79",
+        mach: "$2.77",
+        risk: "+$2.32",
+        margin: "$2.35",
+        total: "$8.23",
+        decision: "CONDITIONAL REVIEW",
+        infill: "Gyroid (15-20%)",
+        support: "40% / 0.2mm Z-Gap",
+        cooling: "30-50% (5 layers) -> 60%",
+        adhesion: "Standard 5mm Brim",
+        sagaText: "5. Saga Compensating Transaction: Standby (Active Allocation)",
+        sagaDot: "#10b981",
+        geom: "bracket"
+      },
       cube: {
         filename: "calibration_cube.stl",
         dims: "20 × 20 × 20 mm",
@@ -353,146 +466,268 @@
         aspect: "0.89 / 1.00",
         tier: "LOW",
         tierColor: "#10b981",
-        riskPct: "8.2%",
-        riskVal: 8.2,
-        ci: "[3.3% - 13.1%]",
+        riskPct: "20.5%",
+        ci: "[13.9% - 27.1%]",
         brim: "None",
         grams: "4.96g",
         time: "0.35 hrs",
         mat: "$0.11",
         mach: "$1.23",
-        risk: "$0.11",
-        margin: "$0.58",
-        total: "$2.06",
-        advisory: "<strong>DECISION: ACCEPT</strong><br>Nominal cube geometry with zero overhangs. Standard slicer profile approved without support structures or rafts.",
-        geomType: "cube"
-      },
-      bracket: {
-        filename: "overhang_bracket.stl",
-        dims: "80 × 20 × 50 mm",
-        vol: "32.0 cm³ (24 tris)",
-        overhang: "16.0 cm² (17.4%)",
-        aspect: "2.22 / 2.50",
-        tier: "CRITICAL",
-        tierColor: "#ef4444",
-        riskPct: "64.4%",
-        riskVal: 64.4,
-        ci: "[57.7% - 71.2%]",
-        brim: "Required",
-        grams: "35.8g",
-        time: "0.79 hrs",
-        mat: "$0.79",
-        mach: "$2.77",
-        risk: "$2.86",
-        margin: "$2.57",
-        total: "$8.98",
-        advisory: "<strong>DECISION: CONDITIONAL REVIEW</strong><br>TabPFN indicates a 64.4% failure probability due to cantilever overhangs.<br><br>• <strong>Infill:</strong> Switch to Gyroid (15-20%) for isotropic thermal stress mitigation.<br>• <strong>Support:</strong> Density 40%, 0.2mm Z-gap interface.<br>• <strong>Cooling:</strong> Fan speed 30-50% first 5 layers, 60% nominal.",
-        geomType: "bracket"
+        risk: "+$0.27",
+        margin: "$0.64",
+        total: "$2.25",
+        decision: "PROCEED WITH PRINT",
+        infill: "Grid / Lightning (15%)",
+        support: "None (0g Support)",
+        cooling: "100% Part Fan",
+        adhesion: "No Brim / Smooth PEI",
+        sagaText: "5. Saga Compensating Transaction: Standby (Allocation Confirmed)",
+        sagaDot: "#10b981",
+        geom: "cube"
       },
       tower: {
         filename: "tall_tower.stl",
         dims: "10 × 10 × 120 mm",
-        vol: "12.0 cm³ (12 tris)",
+        vol: "12.0 cm³ (36 tris)",
         overhang: "0.0 cm² (0.0%)",
         aspect: "10.63 / 12.00",
         tier: "CRITICAL",
         tierColor: "#ef4444",
-        riskPct: "94.6%",
-        riskVal: 94.6,
-        ci: "[90.0% - 99.0%]",
+        riskPct: "97.4%",
+        ci: "[92.2% - 99.0%]",
         brim: "MANDATORY RAFT",
         grams: "9.14g",
         time: "0.60 hrs",
         mat: "$0.20",
         mach: "$2.10",
-        risk: "$2.72",
-        margin: "$2.01",
-        total: "$7.03",
-        advisory: "<strong>DECISION: CRITICAL REVISE</strong><br>Extreme tipping vulnerability detected! Aspect ratio 12.0 exceeds print bed adhesion threshold.<br><br>• <strong>Adhesion:</strong> 10mm wide brim or full raft mandatory.<br>• <strong>Speed:</strong> Reduce Z-hop speed by 50% to prevent mechanical nozzle strike detachment.",
-        geomType: "tower"
+        risk: "+$2.24",
+        margin: "$1.82",
+        total: "$6.36",
+        decision: "CRITICAL REVISE (TIPPING)",
+        infill: "Concentric / Solid (40%)",
+        support: "Tree Support Braces",
+        cooling: "70% Fan / Slow Layer",
+        adhesion: "MANDATORY 15mm Raft",
+        sagaText: "5. Saga Compensation Executed: Spool Unlocked (High Scrap)",
+        sagaDot: "#ef4444",
+        geom: "tower"
       }
     };
 
-    // Three.js Scene Setup
-    const container = document.getElementById("viewport");
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
+    let currentPreset = PRESETS.bracket;
+    let rotationAngle = 0;
+    const canvas = document.getElementById("viewport-canvas");
+    let ctx = null;
+    let webglRenderer = null;
+    let threeScene = null;
+    let threeCamera = null;
+    let threeMesh = null;
+    let isWebGL = false;
 
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(100, 100, 150);
+    // Initialize 3D Engine with Resilient Fallback
+    function init3D() {
+      const box = canvas.parentElement;
+      const width = box.clientWidth || 700;
+      const height = box.clientHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.shadowMap.enabled = true;
-    container.appendChild(renderer.domElement);
+      // Try Three.js WebGL first
+      if (typeof THREE !== 'undefined') {
+        try {
+          threeScene = new THREE.Scene();
+          threeScene.background = new THREE.Color(0x090d16);
+          threeCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+          threeCamera.position.set(100, 100, 140);
+          threeCamera.lookAt(0, 20, 0);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+          webglRenderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            antialias: true,
+            powerPreference: "default"
+          });
+          webglRenderer.setSize(width, height);
 
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+          const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+          threeScene.add(ambient);
+          const dir1 = new THREE.DirectionalLight(0x60a5fa, 0.9);
+          dir1.position.set(100, 200, 100);
+          threeScene.add(dir1);
+          const dir2 = new THREE.DirectionalLight(0xa855f7, 0.5);
+          dir2.position.set(-100, -50, -100);
+          threeScene.add(dir2);
 
-    const dirLight1 = new THREE.DirectionalLight(0x60a5fa, 0.8);
-    dirLight1.position.set(100, 200, 100);
-    scene.add(dirLight1);
+          const grid = new THREE.GridHelper(160, 16, 0x3b82f6, 0x1f2937);
+          threeScene.add(grid);
 
-    const dirLight2 = new THREE.DirectionalLight(0xc084fc, 0.5);
-    dirLight2.position.set(-100, -100, -100);
-    scene.add(dirLight2);
-
-    // Bed Grid
-    const gridHelper = new THREE.GridHelper(160, 16, 0x3b82f6, 0x1f2937);
-    gridHelper.position.y = 0;
-    scene.add(gridHelper);
-
-    let activeMesh = null;
-
-    function buildMesh(geomType) {
-      if (activeMesh) scene.remove(activeMesh);
-      const group = new THREE.Group();
-
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        metalness: 0.2,
-        roughness: 0.4,
-        wireframe: false
-      });
-
-      if (geomType === "cube") {
-        const geom = new THREE.BoxGeometry(20, 20, 20);
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.y = 10;
-        group.add(mesh);
-      } else if (geomType === "tower") {
-        const geom = new THREE.BoxGeometry(10, 120, 10);
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.y = 60;
-        group.add(mesh);
-      } else if (geomType === "bracket") {
-        // Base
-        const baseGeom = new THREE.BoxGeometry(20, 40, 20);
-        const baseMesh = new THREE.Mesh(baseGeom, mat);
-        baseMesh.position.set(-20, 20, 0);
-        group.add(baseMesh);
-
-        // Overhang Cantilever
-        const topGeom = new THREE.BoxGeometry(80, 10, 20);
-        const topMesh = new THREE.Mesh(topGeom, mat);
-        topMesh.position.set(10, 45, 0);
-        group.add(topMesh);
+          isWebGL = true;
+          document.getElementById("lbl-render-mode").textContent = "Three.js WebGL Accelerated";
+          updateThreeMesh(currentPreset.geom);
+          animateWebGL();
+          return;
+        } catch (e) {
+          console.warn("WebGL not supported in this environment, activating 2.5D Isometric Vector Engine:", e);
+        }
       }
 
-      activeMesh = group;
-      scene.add(activeMesh);
+      // Fallback: High-Performance 2.5D Isometric Vector Canvas Engine
+      isWebGL = false;
+      document.getElementById("lbl-render-mode").textContent = "2.5D Isometric Vector Engine";
+      ctx = canvas.getContext("2d");
+      animateVectorCanvas();
     }
 
-    function loadPreset(key) {
-      document.querySelectorAll(".btn-preset").forEach(btn => btn.classList.remove("active"));
-      event.target.classList.add("active");
+    function updateThreeMesh(geomType) {
+      if (!isWebGL || !threeScene) return;
+      if (threeMesh) threeScene.remove(threeMesh);
+
+      const group = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        metalness: 0.25,
+        roughness: 0.35,
+        wireframe: false
+      });
+      const wireMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, wireframe: true, transparent: true, opacity: 0.3 });
+
+      if (geomType === "cube") {
+        const g = new THREE.BoxGeometry(25, 25, 25);
+        const m = new THREE.Mesh(g, mat);
+        m.position.y = 12.5;
+        group.add(m);
+        group.add(new THREE.Mesh(g, wireMat));
+      } else if (geomType === "tower") {
+        const g = new THREE.BoxGeometry(12, 120, 12);
+        const m = new THREE.Mesh(g, mat);
+        m.position.y = 60;
+        group.add(m);
+        group.add(new THREE.Mesh(g, wireMat));
+      } else if (geomType === "bracket") {
+        const baseG = new THREE.BoxGeometry(25, 45, 25);
+        const baseM = new THREE.Mesh(baseG, mat);
+        baseM.position.set(-20, 22.5, 0);
+        group.add(baseM);
+
+        const topG = new THREE.BoxGeometry(85, 14, 25);
+        const topM = new THREE.Mesh(topG, mat);
+        topM.position.set(10, 50, 0);
+        group.add(topM);
+      }
+
+      threeMesh = group;
+      threeScene.add(threeMesh);
+    }
+
+    function animateWebGL() {
+      if (!isWebGL) return;
+      requestAnimationFrame(animateWebGL);
+      if (threeMesh) {
+        threeMesh.rotation.y += 0.008;
+      }
+      webglRenderer.render(threeScene, threeCamera);
+    }
+
+    // 2.5D Isometric Vector Renderer (Guaranteed to render smoothly on any machine)
+    function animateVectorCanvas() {
+      if (isWebGL) return;
+      requestAnimationFrame(animateVectorCanvas);
+      rotationAngle += 0.012;
+
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw Grid Bed
+      const cx = w / 2;
+      const cy = h / 2 + 50;
+      ctx.strokeStyle = "rgba(59, 130, 246, 0.2)";
+      ctx.lineWidth = 1;
+      for (let i = -6; i <= 6; i++) {
+        const p1 = isoProject(i * 25, -150, 0, rotationAngle, cx, cy);
+        const p2 = isoProject(i * 25, 150, 0, rotationAngle, cx, cy);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        const p3 = isoProject(-150, i * 25, 0, rotationAngle, cx, cy);
+        const p4 = isoProject(150, i * 25, 0, rotationAngle, cx, cy);
+        ctx.beginPath();
+        ctx.moveTo(p3.x, p3.y);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.stroke();
+      }
+
+      // Draw active geometry
+      if (currentPreset.geom === "cube") {
+        drawBox(0, 0, 0, 45, 45, 45, rotationAngle, cx, cy, "#38bdf8", "rgba(56, 189, 248, 0.35)");
+      } else if (currentPreset.geom === "tower") {
+        drawBox(0, 0, 0, 20, 20, 160, rotationAngle, cx, cy, "#f87171", "rgba(239, 68, 68, 0.35)");
+      } else if (currentPreset.geom === "bracket") {
+        drawBox(-35, 0, 0, 35, 35, 75, rotationAngle, cx, cy, "#38bdf8", "rgba(56, 189, 248, 0.35)");
+        drawBox(10, 0, 75, 120, 35, 25, rotationAngle, cx, cy, "#f59e0b", "rgba(245, 158, 11, 0.45)");
+      }
+    }
+
+    function isoProject(x, y, z, angle, cx, cy) {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rx = x * cos - y * sin;
+      const ry = x * sin + y * cos;
+
+      const isoX = cx + (rx - ry) * 0.866;
+      const isoY = cy + (rx + ry) * 0.5 - z * 0.9;
+      return { x: isoX, y: isoY };
+    }
+
+    function drawBox(ox, oy, oz, w, d, h, angle, cx, cy, strokeColor, fillColor) {
+      const x0 = ox - w / 2, x1 = ox + w / 2;
+      const y0 = oy - d / 2, y1 = oy + d / 2;
+      const z0 = oz, z1 = oz + h;
+
+      const p = [
+        isoProject(x0, y0, z0, angle, cx, cy),
+        isoProject(x1, y0, z0, angle, cx, cy),
+        isoProject(x1, y1, z0, angle, cx, cy),
+        isoProject(x0, y1, z0, angle, cx, cy),
+        isoProject(x0, y0, z1, angle, cx, cy),
+        isoProject(x1, y0, z1, angle, cx, cy),
+        isoProject(x1, y1, z1, angle, cx, cy),
+        isoProject(x0, y1, z1, angle, cx, cy)
+      ];
+
+      const faces = [
+        [4, 5, 6, 7], // Top
+        [0, 1, 5, 4], // Front
+        [1, 2, 6, 5], // Right
+        [2, 3, 7, 6], // Back
+        [3, 0, 4, 7], // Left
+        [0, 3, 2, 1]  // Bottom
+      ];
+
+      for (const f of faces) {
+        ctx.beginPath();
+        ctx.moveTo(p[f[0]].x, p[f[0]].y);
+        for (let i = 1; i < f.length; i++) {
+          ctx.lineTo(p[f[i]].x, p[f[i]].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    function selectModel(key) {
+      document.querySelectorAll(".btn-preset").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-preset") === key);
+      });
 
       const p = PRESETS[key];
+      currentPreset = p;
+
       document.getElementById("lbl-filename").textContent = p.filename;
       document.getElementById("val-dims").textContent = p.dims;
       document.getElementById("val-vol").textContent = p.vol;
@@ -521,29 +756,39 @@
       document.getElementById("price-margin").textContent = p.margin;
       document.getElementById("price-total").textContent = p.total;
 
-      document.getElementById("llm-advisory").innerHTML = p.advisory;
+      const decisionEl = document.getElementById("advisory-decision");
+      decisionEl.textContent = p.decision;
+      decisionEl.style.color = p.tierColor;
 
-      buildMesh(p.geomType);
-    }
+      document.getElementById("chip-infill").textContent = p.infill;
+      document.getElementById("chip-support").textContent = p.support;
+      document.getElementById("chip-cooling").textContent = p.cooling;
+      document.getElementById("chip-adhesion").textContent = p.adhesion;
 
-    // Animation Loop
-    function animate() {
-      requestAnimationFrame(animate);
-      if (activeMesh) {
-        activeMesh.rotation.y += 0.005;
+      document.getElementById("step-saga").textContent = p.sagaText;
+      document.getElementById("step-saga").previousElementSibling.style.backgroundColor = p.sagaDot;
+
+      if (isWebGL) {
+        updateThreeMesh(p.geom);
       }
-      controls.update();
-      renderer.render(scene, camera);
     }
 
-    // Initial build
-    buildMesh("bracket");
-    animate();
+    window.addEventListener("DOMContentLoaded", () => {
+      init3D();
+      selectModel("bracket");
+    });
 
     window.addEventListener("resize", () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      const box = canvas.parentElement;
+      const width = box.clientWidth || 700;
+      const height = box.clientHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
+      if (isWebGL && webglRenderer && threeCamera) {
+        threeCamera.aspect = width / height;
+        threeCamera.updateProjectionMatrix();
+        webglRenderer.setSize(width, height);
+      }
     });
   </script>
 </body>

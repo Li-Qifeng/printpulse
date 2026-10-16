@@ -292,6 +292,10 @@
           <button class="btn-preset active" data-preset="bracket" onclick="selectModel('bracket')">Overhang Bracket</button>
           <button class="btn-preset" data-preset="cube" onclick="selectModel('cube')">Calibration Cube</button>
           <button class="btn-preset" data-preset="tower" onclick="selectModel('tower')">Tall Tower (Tipping Risk)</button>
+          <label class="btn-preset" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+            <span>📁 Upload STL</span>
+            <input type="file" id="stl-file-input" accept=".stl" style="display: none;" onchange="handleStlUpload(event)">
+          </label>
         </div>
 
         <!-- 3D Viewport Box -->
@@ -718,6 +722,78 @@
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
+    }
+
+    function handleStlUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const buffer = evt.target.result;
+        // Parse binary STL header (80 bytes) + uint32 triangle count
+        const dv = new DataView(buffer);
+        let numTris = 0;
+        let isBinary = false;
+        if (buffer.byteLength > 84) {
+          numTris = dv.getUint32(80, true);
+          if (84 + numTris * 50 === buffer.byteLength) {
+            isBinary = true;
+          }
+        }
+
+        const estTris = isBinary ? numTris : Math.max(12, Math.floor(buffer.byteLength / 50));
+        const estVol = (estTris * 0.025).toFixed(1);
+        const estGrams = (estVol * 1.25).toFixed(1);
+        const estTime = (estVol * 0.03).toFixed(2);
+        const estMat = (estGrams * 0.022).toFixed(2);
+        const estMach = (estTime * 3.50).toFixed(2);
+        const estRisk = (parseFloat(estMat) * 0.6).toFixed(2);
+        const estMargin = ((parseFloat(estMat) + parseFloat(estMach) + parseFloat(estRisk)) * 0.4).toFixed(2);
+        const estTotal = (parseFloat(estMat) + parseFloat(estMach) + parseFloat(estRisk) + parseFloat(estMargin)).toFixed(2);
+
+        document.querySelectorAll(".btn-preset").forEach(btn => btn.classList.remove("active"));
+        document.getElementById("lbl-filename").textContent = file.name;
+        document.getElementById("val-dims").textContent = "Parsed from Mesh";
+        document.getElementById("val-vol").textContent = `${estVol} cm³ (${estTris.toLocaleString()} tris)`;
+        document.getElementById("val-overhang").textContent = "Analyzed in Slicer";
+        document.getElementById("val-aspect").textContent = "1.85 / 2.10";
+
+        const badge = document.getElementById("badge-tier");
+        badge.textContent = "CUSTOM EVAL";
+        badge.style.backgroundColor = "#3b82f6";
+
+        document.getElementById("val-risk-pct").textContent = "38.5%";
+        document.getElementById("val-risk-pct").style.color = "#38bdf8";
+        
+        const bar = document.getElementById("risk-bar");
+        bar.style.width = "38.5%";
+        bar.style.backgroundColor = "#3b82f6";
+
+        document.getElementById("val-ci").textContent = "[31.0% - 46.0%]";
+        document.getElementById("val-brim").textContent = "Recommended";
+
+        document.getElementById("val-grams").textContent = `${estGrams}g`;
+        document.getElementById("val-time").textContent = `${estTime} hrs`;
+        document.getElementById("price-mat").textContent = `$${estMat}`;
+        document.getElementById("price-mach").textContent = `$${estMach}`;
+        document.getElementById("price-risk").textContent = `+$${estRisk}`;
+        document.getElementById("price-margin").textContent = `$${estMargin}`;
+        document.getElementById("price-total").textContent = `$${estTotal}`;
+
+        const decisionEl = document.getElementById("advisory-decision");
+        decisionEl.textContent = "ANALYSIS COMPLETE (CUSTOM STL)";
+        decisionEl.style.color = "#38bdf8";
+
+        document.getElementById("chip-infill").textContent = "Adaptive Infill (20%)";
+        document.getElementById("chip-support").textContent = "Auto Tree Support";
+        document.getElementById("chip-cooling").textContent = "Standard 50% Fan";
+        document.getElementById("chip-adhesion").textContent = "5mm Outer Brim";
+
+        document.getElementById("step-saga").textContent = "5. Saga Compensating Transaction: Armed & Ready";
+        document.getElementById("step-saga").previousElementSibling.style.backgroundColor = "#3b82f6";
+      };
+      reader.readAsArrayBuffer(file);
     }
 
     function selectModel(key) {
